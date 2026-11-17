@@ -1,0 +1,14 @@
+{
+  "name": "@hanzi-lens/core",
+  "version": "0.1.0",
+  "description": "Chinese word segmentation, pinyin and dictionary lookup (CC-CEDICT + jieba frequencies). UI-agnostic.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "data": "node scripts/build-data.mjs",
+    "seg": "tsx scripts/seg.ts",
+    "test": "vitest run"
+  }
+}

@@ -1,0 +1,10 @@
+/* Word-boundary tints for the hovered sentence (CSS Custom Highlight API). */
+::highlight(hanzi-lens-a) {
+  background-color: rgba(255, 196, 0, 0.18);
+}
+::highlight(hanzi-lens-b) {
+  background-color: rgba(0, 150, 255, 0.14);
+}
+::highlight(hanzi-lens-active) {
+  background-color: rgba(255, 140, 0, 0.45);
+}

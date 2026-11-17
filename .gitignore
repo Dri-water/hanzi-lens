@@ -1,0 +1,7 @@
+node_modules/
+dist/
+packages/core/data/raw/
+packages/core/data/lexicon.json
+*.zip
+.DS_Store
+.claude/

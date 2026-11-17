@@ -1,0 +1,25 @@
+{
+  "name": "hanzi-lens",
+  "private": true,
+  "description": "Hover Chinese text to see word boundaries, pinyin and English definitions.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/core",
+    "packages/extension"
+  ],
+  "scripts": {
+    "data": "npm run data -w @hanzi-lens/core",
+    "test": "npm test -w @hanzi-lens/core",
+    "seg": "npm run seg -w @hanzi-lens/core --",
+    "build": "npm run build -w @hanzi-lens/extension",
+    "typecheck": "tsc -p packages/core && tsc -p packages/extension"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

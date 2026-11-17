@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Hanzi Lens",
+  "version": "0.1.0",
+  "description": "Hover Chinese text to see where words begin and end, with pinyin and English definitions.",
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_title": "Hanzi Lens: on (click to turn off)"
+  },
+  "commands": {
+    "toggle": {
+      "suggested_key": { "default": "Alt+Shift+Z" },
+      "description": "Turn Hanzi Lens on or off"
+    }
+  },
+  "permissions": ["storage"],
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "hanzi-lens@dri-water.github.io",
+      "strict_min_version": "121.0"
+    }
+  }
+}

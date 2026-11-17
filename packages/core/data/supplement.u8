@@ -1,0 +1,22 @@
+# Hanzi Lens supplement dictionary (MIT, same format as CC-CEDICT).
+# Terms common in news headlines that CC-CEDICT and jieba miss or mis-segment.
+# Format: Traditional Simplified [pin1 yin1] /definition 1/definition 2/
+# Entries here are added to the segmentation dictionary with a high frequency.
+滬指 沪指 [Hu4 zhi3] /Shanghai Composite Index (abbr. for 上證綜合指數|上证综合指数)/
+深成指 深成指 [Shen1 cheng2 zhi3] /Shenzhen Component Index (abbr.)/
+創業板 创业板 [Chuang4 ye4 ban3] /ChiNext (Shenzhen growth enterprise stock market)/
+創業板指 创业板指 [Chuang4 ye4 ban3 zhi3] /ChiNext Index/
+恒指 恒指 [Heng2 zhi3] /Hang Seng Index (abbr. for 恒生指數|恒生指数)/
+收漲 收涨 [shou1 zhang3] /(of a market or price) to close higher/
+收跌 收跌 [shou1 die1] /(of a market or price) to close lower/
+收平 收平 [shou1 ping2] /(of a market or price) to close flat/
+漲超 涨超 [zhang3 chao1] /to rise by more than (a given amount)/
+跌超 跌超 [die1 chao1] /to fall by more than (a given amount)/
+防長 防长 [fang2 zhang3] /defense minister (abbr. for 國防部長|国防部长)/
+外長 外长 [wai4 zhang3] /foreign minister (abbr. for 外交部長|外交部长)/
+澤連斯基 泽连斯基 [Ze2 lian2 si1 ji1] /Volodymyr Zelensky (1978-), president of Ukraine from 2019/
+新質生產力 新质生产力 [xin1 zhi4 sheng1 chan3 li4] /new quality productive forces (PRC policy slogan)/
+答記者問 答记者问 [da2 ji4 zhe3 wen4] /to answer reporters' questions/
+加徵 加征 [jia1 zheng1] /to levy additional (taxes, tariffs etc)/
+對華 对华 [dui4 Hua2] /toward China; (policy etc) on China/
+訪華 访华 [fang3 Hua2] /to visit China/
