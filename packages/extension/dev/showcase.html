@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hanzi Lens showcase</title>
+  <link rel="stylesheet" href="content.css">
+  <style>
+    /* A generic news-style page used to capture README screenshots (tools/screenshots.mjs). */
+    :root { --bg: #ffffff; --fg: #1d1c1a; --muted: #7a756b; --rule: #ece8df; --accent: #b8322a; --chip: #f5f1e8; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #161615; --fg: #ebe7de; --muted: #9a958a; --rule: #2c2b28; --accent: #ef6a5f; --chip: #23221f; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.75 "Noto Sans SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 18px 40px; border-bottom: 1px solid var(--rule); }
+    .brand { font: 700 15px/1 system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    .date { font: 13px/1 system-ui, sans-serif; color: var(--muted); }
+    main { padding: 26px 40px 40px; max-width: 920px; }
+    .kicker { font: 600 12px/1 system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+    h1 { font-size: 30px; line-height: 1.4; margin: 0 0 12px; font-weight: 700; }
+    .lede { color: var(--fg); margin: 0 0 26px; }
+    ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
+    li { padding: 12px 0; border-bottom: 1px solid var(--rule); display: flex; gap: 14px; align-items: baseline; font-size: 19px; }
+    .tag { flex: none; font: 600 11px/1 system-ui, sans-serif; padding: 5px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); letter-spacing: .04em; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="brand">Example News</span>
+    <span class="date">2026年11月17日 星期二</span>
+  </header>
+  <main>
+    <p class="kicker">要闻 · Top stories</p>
+    <h1 id="h-trump">唐纳德·特朗普宣布对华加征关税</h1>
+    <p class="lede" id="lede">央行今日宣布下调存款准备金率0.5个百分点，外交部发言人毛宁就中美关系答记者问。</p>
+    <ul>
+      <li><span class="tag">国际</span><span id="h-guterres">联合国秘书长古特雷斯呼吁加沙停火</span></li>
+      <li><span class="tag">财经</span><span id="h-market">沪指收涨1.2% 创业板指涨超2%</span></li>
+      <li><span class="tag">外交</span><span id="h-rubio">美国务卿鲁比奥访华</span></li>
+      <li><span class="tag">科技</span><span id="h-spacex">马斯克旗下SpaceX成功发射星舰</span></li>
+      <li><span class="tag">繁體</span><span id="h-trad">美國總統川普宣布關稅新政</span></li>
+    </ul>
+  </main>
+  <script src="demo.js"></script>
+</body>
+</html>

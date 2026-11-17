@@ -69,8 +69,13 @@ function build() {
     }
     return rows;
   };
-  const supplement = parseCedict(readFileSync(join(dataDir, "supplement.u8"), "utf8"));
-  const entries = [...supplement, ...parseCedict(cedict)];
+  const cedictRows = parseCedict(cedict);
+  const cedictSimp = new Set(cedictRows.map((r) => r[1]));
+  // Supplement words CC-CEDICT already defines would show up twice; skip them
+  // (they still get the boosted segmentation frequency below).
+  const supplementAll = parseCedict(readFileSync(join(dataDir, "supplement.u8"), "utf8"));
+  const supplement = supplementAll.filter((r) => !cedictSimp.has(r[1]));
+  const entries = [...supplement, ...cedictRows];
 
   const headwords = new Set();
   for (const [trad, simp] of entries) {
@@ -107,12 +112,13 @@ function build() {
   // small default frequency; traditional forms inherit the simplified frequency.
   const DEFAULT_FREQ = 3;
   const SUPPLEMENT_FREQ = 2000;
-  entries.forEach(([trad, simp], i) => {
+  const boosted = new Set(supplementAll.flatMap(([t, s]) => [t, s]));
+  for (const [trad, simp] of entries) {
     let f = freq.get(simp) ?? DEFAULT_FREQ;
-    if (i < supplement.length) f = Math.max(f, SUPPLEMENT_FREQ);
+    if (boosted.has(simp)) f = Math.max(f, SUPPLEMENT_FREQ);
     freq.set(simp, Math.max(freq.get(simp) ?? 0, f));
     if (trad !== simp) freq.set(trad, Math.max(freq.get(trad) ?? 0, f));
-  });
+  }
 
   let total = 0;
   for (const f of freq.values()) total += f;

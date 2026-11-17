@@ -1,0 +1,32 @@
+name: Bad segmentation
+description: A sentence or headline where words are split in the wrong place
+title: "Segmentation: "
+labels: [segmentation]
+body:
+  - type: input
+    id: text
+    attributes:
+      label: Text
+      description: The sentence or headline, as it appears on the page.
+      placeholder: 美国务卿鲁比奥访华
+    validations:
+      required: true
+  - type: input
+    id: got
+    attributes:
+      label: What Hanzi Lens shows
+      placeholder: 美 / 国务卿 / 鲁 / 比奥 / 访华
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: What you expected
+      placeholder: 美 / 国务卿 / 鲁比奥 / 访华
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Why it should split that way, the source page, the meaning of any abbreviations, etc.
