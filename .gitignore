@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-firefox/
 packages/core/data/raw/
 packages/core/data/lexicon.json
 *.zip

@@ -26,9 +26,11 @@ jobs:
       - name: Package extension
         run: |
           cd packages/extension/dist
-          rm -f demo.html demo.js
-          zip -r ../../../hanzi-lens-extension.zip .
+          rm -f demo.html demo.js showcase.html
+          zip -r ../../../hanzi-lens-chrome.zip .
+          cd ../dist-firefox
+          zip -r ../../../hanzi-lens-firefox.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: hanzi-lens-extension
-          path: hanzi-lens-extension.zip
+          path: hanzi-lens-*.zip

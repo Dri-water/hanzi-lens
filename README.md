@@ -63,9 +63,9 @@ Chinese is written without spaces, so the hardest part of reading it is often wo
 
 ### From a release (recommended)
 
-1. Download **`hanzi-lens-extension-*.zip`** from the [latest release](https://github.com/Dri-water/hanzi-lens/releases/latest) and unzip it somewhere permanent.
-2. **Chrome / Edge:** open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**, click **Load unpacked**, and choose the unzipped folder.
-3. **Firefox:** open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and pick `manifest.json`.
+**Chrome / Edge:** download **`hanzi-lens-chrome-*.zip`** from the [latest release](https://github.com/Dri-water/hanzi-lens/releases/latest) and unzip it somewhere permanent. Open `chrome://extensions` (or `edge://extensions`), turn on **Developer mode**, click **Load unpacked**, and choose the unzipped folder.
+
+**Firefox:** download **`hanzi-lens-firefox-*.zip`** and unzip it. Open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and pick `manifest.json`.
 
 Store listings (Chrome Web Store, Firefox Add-ons) are on the [roadmap](#roadmap).
 
@@ -101,7 +101,7 @@ The engine in [`packages/core`](packages/core) has no browser dependencies. The 
 git clone https://github.com/Dri-water/hanzi-lens.git && cd hanzi-lens
 npm install
 npm run data      # downloads CC-CEDICT + jieba → packages/core/data/lexicon.json
-npm run build     # → packages/extension/dist (load unpacked)
+npm run build     # → packages/extension/dist (Chrome/Edge) + dist-firefox
 npm test          # headline + unit tests
 ```
 
