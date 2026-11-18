@@ -292,6 +292,8 @@ function teardown() {
 // any older copy in this page to step aside. DOM events cross isolated worlds.
 document.dispatchEvent(new CustomEvent(TAKEOVER));
 document.addEventListener(TAKEOVER, teardown);
+// Versions before 0.1.3 don't know TAKEOVER; drop their (now unusable) popup.
+for (const stale of document.querySelectorAll("[data-hanzi-lens]")) stale.remove();
 
 // Capture phase on window: pages that stop mousemove propagation (video
 // players, canvases, drag handlers) can't hide it from us.

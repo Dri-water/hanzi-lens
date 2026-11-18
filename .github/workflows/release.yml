@@ -1,0 +1,49 @@
+name: Release
+
+# Publishing a GitHub release (tag vX.Y.Z) builds, tests and attaches the
+# Chrome and Firefox zips. Built on Linux so archive paths use "/" (zips made
+# on Windows can contain "icons\16.png" entries that break on macOS/Linux).
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: packages/core/data/raw
+          key: dict-raw-${{ hashFiles('packages/core/scripts/build-data.mjs') }}
+      - run: npm ci
+      - run: npm run data
+      - run: npm test
+      - run: npm run build
+      - run: npm run e2e
+      - name: Check tag matches manifest version
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          version=$(node -p "require('./packages/extension/dist/manifest.json').version")
+          [ "$tag" = "v$version" ] || { echo "tag $tag != manifest v$version"; exit 1; }
+      - name: Package
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          cd packages/extension/dist
+          rm -f demo.html demo.js showcase.html
+          zip -qr "$GITHUB_WORKSPACE/hanzi-lens-chrome-$tag.zip" .
+          cd ../dist-firefox
+          zip -qr "$GITHUB_WORKSPACE/hanzi-lens-firefox-$tag.zip" .
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" hanzi-lens-*.zip --clobber

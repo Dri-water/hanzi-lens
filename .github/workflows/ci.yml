@@ -23,6 +23,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Browser test (install, hover, update in an open tab)
+        run: npm run e2e
       - name: Package extension
         run: |
           cd packages/extension/dist

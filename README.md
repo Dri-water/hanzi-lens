@@ -103,6 +103,7 @@ npm install
 npm run data      # downloads CC-CEDICT + jieba → packages/core/data/lexicon.json
 npm run build     # → packages/extension/dist (Chrome/Edge) + dist-firefox
 npm test          # headline + unit tests
+npm run e2e       # real Chrome: install, hover, then update with the tab still open
 ```
 
 ```bash
@@ -141,6 +142,12 @@ python tools/brand/build_brand.py     # logo + banners (outlined Noto Sans SC)
 node tools/brand/render-icons.mjs     # extension icons from the logo
 npm run build && node tools/screenshots.mjs   # screenshots + demo.gif (needs Chrome, ffmpeg)
 ```
+</details>
+
+<details>
+<summary><b>Releasing</b></summary>
+
+Bump `version` in `packages/extension/static/manifest.json` and `packages/extension/package.json`, push, then publish a GitHub release tagged `vX.Y.Z`. The [Release workflow](.github/workflows/release.yml) builds, tests and attaches the Chrome and Firefox zips.
 </details>
 
 ### Contributing
