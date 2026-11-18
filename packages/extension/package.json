@@ -1,6 +1,6 @@
 {
   "name": "@hanzi-lens/extension",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Hanzi Lens browser extension (Chrome / Edge / Firefox, Manifest V3).",
   "license": "MIT",

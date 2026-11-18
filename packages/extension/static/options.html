@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hanzi Lens options</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 16px 20px; min-width: 340px; }
+  label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+  input { margin-top: 3px; }
+  .hint { color: GrayText; font-size: 12.5px; margin-top: 2px; }
+  .saved { color: #2e8b57; font-size: 12.5px; min-height: 1.5em; margin-top: 10px; }
+</style>
+</head>
+<body>
+<label>
+  <input type="checkbox" id="keepOpen">
+  <span>
+    Keep the definition open while the mouse is on it
+    <div class="hint">Lets you move onto the box to scroll long entries or select text.
+      Off: the box disappears as soon as the mouse leaves the word, and never covers text you want to hover next.</div>
+  </span>
+</label>
+<div class="saved" id="saved"></div>
+<script src="options.js"></script>
+</body>
+</html>

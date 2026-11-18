@@ -1,13 +1,17 @@
 // Content script: finds the character under the mouse, asks the background to
 // segment the surrounding text, highlights word boundaries and shows a popup.
 import type { Token, WordInfo } from "@hanzi-lens/core";
-import { ENABLED_KEY, type LookupResponse, type Request, type SegmentResponse } from "./messages.js";
+import { ENABLED_KEY, KEEP_OPEN_KEY, type LookupResponse, type Request, type SegmentResponse } from "./messages.js";
 import { Popup } from "./popup.js";
 
 const HAN = /\p{Script=Han}/u;
 const SENTENCE_END = /[。！？!?；;\n]/;
 const MAX_BLOCK_CHARS = 4000;
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "OPTION", "CODE", "PRE"]);
+/** With "keep open" on: time to cross the gap between the word and the card. */
+const KEEP_OPEN_GRACE_MS = 300;
+/** Below Chrome's 30 s idle limit for extension workers (see keepAlive below). */
+const KEEPALIVE_MS = 20_000;
 
 interface TextContext {
   text: string;
@@ -16,6 +20,7 @@ interface TextContext {
 }
 
 let enabled = true;
+let keepOpen = false;
 const popup = new Popup();
 const contexts = new WeakMap<Element, { text: string; ctx: Promise<TextContext> }>();
 const lookups = new Map<string, Promise<WordInfo | null>>();
@@ -23,6 +28,9 @@ let current: { block: Element; token: Token } | null = null;
 let pending = false;
 let lastEvent: MouseEvent | null = null;
 let hideTimer = 0;
+/** Text node the pointer is on right now. Cleared when it leaves, so a slow
+ *  reply that arrives afterwards doesn't pop up a card for where it used to be. */
+let latestNode: Text | null = null;
 
 // --- highlight (CSS Custom Highlight API, with a no-op fallback) -------------
 const supportsHighlights = typeof CSS !== "undefined" && "highlights" in CSS;
@@ -70,7 +78,13 @@ function lookup(token: Token): Promise<WordInfo | null> {
   const key = `${token.kind}:${token.text}`;
   let p = lookups.get(key);
   if (!p) {
-    p = send<LookupResponse>({ type: "lookup", token }).then((r) => ("info" in r ? r.info : null), () => null);
+    p = send<LookupResponse>({ type: "lookup", token }).then(
+      (r) => ("info" in r ? r.info : null),
+      () => {
+        lookups.delete(key); // e.g. the worker was restarting: try again next hover
+        return null;
+      },
+    );
     lookups.set(key, p);
     if (lookups.size > 2000) lookups.delete(lookups.keys().next().value!);
   }
@@ -148,11 +162,17 @@ function getContext(block: Element, hovered: Text): Promise<TextContext> {
     // nodes may have been replaced with identical text; refresh positions
     return cached.ctx.then((c) => ({ ...c, nodes }));
   }
-  const ctx = send<SegmentResponse>({ type: "segment", text }).then((r) => {
-    if ("error" in r) throw new Error(r.error);
-    return { text, nodes, tokens: r.tokens };
-  });
-  contexts.set(block, { text, ctx });
+  const entry = {
+    text,
+    ctx: send<SegmentResponse>({ type: "segment", text }).then((r) => {
+      if ("error" in r) throw new Error(r.error);
+      return { text, nodes, tokens: r.tokens };
+    }),
+  };
+  // Don't remember a failure, or this block would stay dead until a page reload.
+  entry.ctx.catch(() => contexts.get(block) === entry && contexts.delete(block));
+  const ctx = entry.ctx;
+  contexts.set(block, entry);
   return ctx;
 }
 
@@ -181,23 +201,29 @@ async function handleHover(e: MouseEvent) {
   if (!enabled) return;
   const target = e.target as Element | null;
   if (target?.closest?.("[data-hanzi-lens]")) {
-    clearTimeout(hideTimer); // pointer is on the popup itself
-    return;
+    // Only reachable with "keep open" on (otherwise the card ignores the mouse).
+    return cancelHide();
   }
   const caret = caretAt(e.clientX, e.clientY);
   const idx = caret && charUnderPointer(caret.node, caret.offset, e.clientX, e.clientY);
-  if (!caret || idx == null || !HAN.test(caret.node.data[idx] ?? "")) return scheduleHide();
+  if (!caret || idx == null || !HAN.test(caret.node.data[idx] ?? "")) return leave();
+  sawChinese();
 
   const block = blockFor(caret.node);
+  // Pointer moved to a paragraph we haven't segmented yet: the old card is
+  // no longer about what's under the pointer, so drop it now.
+  if (current && current.block !== block) hide();
+  latestNode = caret.node;
   const ctx = await getContext(block, caret.node).catch(() => null);
-  if (!ctx) return scheduleHide();
+  if (latestNode !== caret.node) return; // pointer has moved on
+  if (!ctx) return leave();
   const nodeStart = ctx.nodes.find((n) => n.node === caret.node)?.start;
-  if (nodeStart == null) return scheduleHide();
+  if (nodeStart == null) return leave();
   const g = nodeStart + idx;
   const ti = ctx.tokens.findIndex((t) => t.start <= g && g < t.end);
   const token = ctx.tokens[ti];
-  if (!token || !isChinese(token)) return scheduleHide();
-  clearTimeout(hideTimer);
+  if (!token || !isChinese(token)) return leave();
+  cancelHide();
 
   if (current && current.block === block && current.token.start === token.start && current.token.end === token.end) return;
   current = { block, token };
@@ -209,6 +235,51 @@ async function handleHover(e: MouseEvent) {
   const info = await lookup(token);
   if (current?.token !== token || !info) return;
   popup.show(info, tokenRange.getBoundingClientRect());
+}
+
+/** The pointer is no longer on a Chinese word. */
+function leave() {
+  latestNode = null;
+  if (!current) return;
+  if (!keepOpen) return hide();
+  if (hideTimer) return; // already counting down
+  hideTimer = window.setTimeout(hide, KEEP_OPEN_GRACE_MS);
+}
+function cancelHide() {
+  clearTimeout(hideTimer);
+  hideTimer = 0;
+}
+
+// --- keeping the background warm ------------------------------------------------
+// Chrome stops an idle extension worker after 30 s; restarting it means
+// reloading the whole dictionary (~0.5-1.5 s), which is exactly the lag of the
+// first hover after reading for a while. While a tab with Chinese on it is
+// visible, a tiny ping every 20 s keeps the dictionary loaded. Hidden tabs and
+// non-Chinese pages don't ping, so Chrome can still unload it when unused.
+let chinesePage = false;
+let keepAliveTimer = 0;
+function ping() {
+  if (enabled && chinesePage && document.visibilityState === "visible") send({ type: "ping" }).catch(() => {});
+}
+function sawChinese() {
+  if (chinesePage) return;
+  chinesePage = true;
+  ping(); // load now, while the mouse is still on its way to the word
+  keepAliveTimer = window.setInterval(ping, KEEPALIVE_MS);
+}
+const onVisibility = () => ping();
+/** Cheap look at the page's first text, to warm up before the first hover. */
+function pageLooksChinese() {
+  if (/^zh/i.test(document.documentElement.lang) || HAN.test(document.title)) return true;
+  if (!document.body) return false;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let seen = 0;
+  for (let n = walker.nextNode(); n && seen < 50_000; n = walker.nextNode()) {
+    const t = (n as Text).data;
+    if (HAN.test(t) && !SKIP_TAGS.has(n.parentElement?.tagName ?? "")) return true;
+    seen += t.length;
+  }
+  return false;
 }
 
 /** Alternate-tint every word in the sentence so boundaries are visible. */
@@ -232,12 +303,9 @@ function highlightSentence(ctx: TextContext, ti: number, active: Range) {
   hl.active.add(active);
 }
 
-function scheduleHide() {
-  clearTimeout(hideTimer);
-  hideTimer = window.setTimeout(hide, 250);
-}
-
 function hide() {
+  cancelHide();
+  latestNode = null;
   current = null;
   clearHighlights();
   popup.hide();
@@ -266,6 +334,12 @@ function onStorage(changes: Record<string, chrome.storage.StorageChange>) {
     enabled = changes[ENABLED_KEY].newValue ?? true;
     if (!enabled) hide();
   }
+  if (KEEP_OPEN_KEY in changes) setKeepOpen(changes[KEEP_OPEN_KEY].newValue);
+}
+function setKeepOpen(v: unknown) {
+  keepOpen = v === true;
+  popup.setInteractive(keepOpen);
+  if (!keepOpen) hide();
 }
 
 const TAKEOVER = "hanzi-lens:takeover";
@@ -280,6 +354,8 @@ function teardown() {
   window.removeEventListener("keydown", onKeyDown, true);
   window.removeEventListener("scroll", onScroll, true);
   window.removeEventListener("blur", hide);
+  document.removeEventListener("visibilitychange", onVisibility);
+  clearInterval(keepAliveTimer);
   document.removeEventListener(TAKEOVER, teardown);
   try {
     chrome.storage.onChanged.removeListener(onStorage);
@@ -301,8 +377,14 @@ window.addEventListener("mousemove", onMouseMove, { passive: true, capture: true
 window.addEventListener("keydown", onKeyDown, true);
 window.addEventListener("scroll", onScroll, { passive: true, capture: true });
 window.addEventListener("blur", hide);
+document.addEventListener("visibilitychange", onVisibility);
 
-chrome.storage.local.get(ENABLED_KEY, (r) => {
+chrome.storage.local.get([ENABLED_KEY, KEEP_OPEN_KEY], (r) => {
   enabled = r[ENABLED_KEY] ?? true;
+  keepOpen = r[KEEP_OPEN_KEY] === true;
+  popup.setInteractive(keepOpen);
+  // Load the dictionary before the first hover. Only the top frame looks;
+  // iframes start pinging once Chinese is actually hovered in them.
+  if (window === window.top && pageLooksChinese()) sawChinese();
 });
 chrome.storage.onChanged.addListener(onStorage);

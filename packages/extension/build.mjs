@@ -28,6 +28,7 @@ const options = {
   entryPoints: {
     background: join(here, "src/background.ts"),
     content: join(here, "src/content.ts"),
+    options: join(here, "src/options.ts"),
     demo: join(here, "dev/demo.ts"),
   },
   outdir: dist,

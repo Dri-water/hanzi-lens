@@ -9,7 +9,11 @@ const CSS_TEXT = `
   font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
   color: #1d1d1f; background: #fffefa; border: 1px solid #d9d4c7;
   box-shadow: 0 6px 24px rgba(0,0,0,.18);
+  /* By default the card is see-through to the mouse: it never blocks hovering
+     the text under it, and it goes away as soon as the pointer leaves the word. */
+  pointer-events: none;
 }
+.card.interactive { pointer-events: auto; }
 .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .hanzi { font: 26px/1.2 "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif; }
 .alt { color: #8a8578; font-size: 15px; }
@@ -77,6 +81,13 @@ function entryEl(d: Definition, showPinyin: boolean) {
 export class Popup {
   private host: HTMLElement | null = null;
   private card!: HTMLDivElement;
+  private interactive = false;
+
+  /** Interactive: the pointer can move onto the card (to scroll or select). */
+  setInteractive(on: boolean) {
+    this.interactive = on;
+    this.card?.classList.toggle("interactive", on);
+  }
 
   private ensure() {
     if (this.host?.isConnected) return;
@@ -91,6 +102,7 @@ export class Popup {
       root.append(el("style", undefined, CSS_TEXT));
     }
     this.card = el("div", "card");
+    this.card.classList.toggle("interactive", this.interactive);
     this.card.style.display = "none";
     root.append(this.card);
     document.documentElement.append(this.host);

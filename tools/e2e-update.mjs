@@ -112,6 +112,52 @@ try {
   check((await hover(1)) === "国务卿", "hover works in the already-open tab after update (国务卿)");
   const hosts = await page.evaluate(() => document.querySelectorAll("[data-hanzi-lens]").length);
   check(hosts === 1, `exactly one popup in the page (found ${hosts})`);
+
+  // --- leaving the word: the card goes away at once, and never blocks text ---
+  const cardBox = () =>
+    page.evaluate(() => {
+      const c = document.querySelector("[data-hanzi-lens]")?.shadowRoot?.querySelector(".card");
+      if (!c || c.style.display === "none") return null;
+      const r = c.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+  const goneWithin = (ms) =>
+    page
+      .waitForFunction(
+        () => document.querySelector("[data-hanzi-lens]")?.shadowRoot?.querySelector(".card")?.style.display === "none",
+        { timeout: ms, polling: "raf" },
+      )
+      .then(() => true, () => false);
+
+  await hover(4);
+  let box = await cardBox();
+  await page.mouse.move(5, 480);
+  check(await goneWithin(100), "card disappears as soon as the pointer leaves the word");
+
+  await hover(4);
+  box = await cardBox();
+  await page.mouse.move(box.x, box.y); // onto the card (default: passes through it)
+  check(await goneWithin(100), "default: moving onto the card hides it");
+  const under = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest("[data-hanzi-lens]") == null,
+    box,
+  );
+  check(under, "default: the card doesn't block the page under it");
+
+  // --- "keep open while the mouse is on it" setting ---
+  // Tick it on the real options page (right-click the icon -> Options).
+  const opts = await browser.newPage();
+  await opts.goto(`chrome-extension://${id}/options.html`);
+  await opts.click("#keepOpen");
+  await opts.waitForFunction(() => document.getElementById("saved").textContent !== "");
+  await opts.close();
+  await page.bringToFront();
+  await hover(4);
+  box = await cardBox();
+  await page.mouse.move(box.x, box.y);
+  check(!(await goneWithin(700)), "keep-open setting: card stays while the pointer is on it");
+  await page.mouse.move(5, 480);
+  check(await goneWithin(1000), "keep-open setting: card goes once the pointer leaves it");
 } finally {
   await browser.close();
   server.close();

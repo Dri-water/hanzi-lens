@@ -75,7 +75,8 @@ Store listings (Chrome Web Store, Firefox Add-ons) are on the [roadmap](#roadmap
 | --- | --- |
 | Look up a word | Hover over it |
 | Turn on or off | Click the toolbar icon, or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> |
-| Close the popup | <kbd>Esc</kbd>, or move the pointer away |
+| Close the popup | Move the pointer off the word, or <kbd>Esc</kbd> |
+| Keep the popup open while the pointer is on it (to scroll or copy) | Right-click the toolbar icon → **Options** |
 
 ## How it works
 
@@ -103,7 +104,8 @@ npm install
 npm run data      # downloads CC-CEDICT + jieba → packages/core/data/lexicon.json
 npm run build     # → packages/extension/dist (Chrome/Edge) + dist-firefox
 npm test          # headline + unit tests
-npm run e2e       # real Chrome: install, hover, then update with the tab still open
+npm run e2e       # real Chrome: install, hover, update with the tab still open, popup behaviour
+node tools/latency.mjs   # real Chrome: ms from hover to popup (cold, warm, after 35 s idle)
 ```
 
 ```bash
