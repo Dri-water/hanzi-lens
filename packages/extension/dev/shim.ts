@@ -9,6 +9,7 @@ const engine: Promise<Engine> = fetch("lexicon.json")
 
 (globalThis as any).chrome = {
   runtime: {
+    id: "demo",
     lastError: undefined,
     getURL: (p: string) => p,
     sendMessage(msg: Request, cb: (r: unknown) => void) {

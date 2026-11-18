@@ -47,6 +47,13 @@ function clearHighlights() {
 // --- messaging ---------------------------------------------------------------
 function send<T>(msg: Request): Promise<T> {
   return new Promise((resolve, reject) => {
+    // After the extension is updated or reloaded, this copy is cut off from the
+    // background for good. Step aside; the background injects a fresh copy.
+    if (!chrome.runtime?.id) {
+      teardown();
+      reject(new Error("extension context invalidated"));
+      return;
+    }
     try {
       chrome.runtime.sendMessage(msg, (res: T) => {
         const err = chrome.runtime.lastError;
@@ -236,29 +243,64 @@ function hide() {
   popup.hide();
 }
 
-document.addEventListener(
-  "mousemove",
-  (e) => {
-    lastEvent = e;
-    if (pending) return;
-    pending = true;
-    requestAnimationFrame(() => {
-      pending = false;
-      if (lastEvent) handleHover(lastEvent);
-    });
-  },
-  { passive: true },
-);
-document.addEventListener("keydown", (e) => e.key === "Escape" && hide());
-window.addEventListener("scroll", hide, { passive: true, capture: true });
+// --- lifecycle -------------------------------------------------------------------
+function onMouseMove(e: MouseEvent) {
+  lastEvent = e;
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    if (lastEvent) handleHover(lastEvent);
+  });
+}
+const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && hide();
+/** Hide only when the hovered text itself moves, not when some unrelated
+ *  panel scrolls (live chat, carousels, auto-scrolling feeds). */
+function onScroll(e: Event) {
+  if (!current) return;
+  const t = e.target;
+  if (t === document || t === window || (t instanceof Node && t.contains(current.block))) hide();
+}
+function onStorage(changes: Record<string, chrome.storage.StorageChange>) {
+  if (ENABLED_KEY in changes) {
+    enabled = changes[ENABLED_KEY].newValue ?? true;
+    if (!enabled) hide();
+  }
+}
+
+const TAKEOVER = "hanzi-lens:takeover";
+let alive = true;
+
+function teardown() {
+  if (!alive) return;
+  alive = false;
+  hide();
+  popup.destroy();
+  window.removeEventListener("mousemove", onMouseMove, true);
+  window.removeEventListener("keydown", onKeyDown, true);
+  window.removeEventListener("scroll", onScroll, true);
+  window.removeEventListener("blur", hide);
+  document.removeEventListener(TAKEOVER, teardown);
+  try {
+    chrome.storage.onChanged.removeListener(onStorage);
+  } catch {
+    // context already invalidated
+  }
+}
+
+// A newer copy (after an update, or injected into an already-open tab) tells
+// any older copy in this page to step aside. DOM events cross isolated worlds.
+document.dispatchEvent(new CustomEvent(TAKEOVER));
+document.addEventListener(TAKEOVER, teardown);
+
+// Capture phase on window: pages that stop mousemove propagation (video
+// players, canvases, drag handlers) can't hide it from us.
+window.addEventListener("mousemove", onMouseMove, { passive: true, capture: true });
+window.addEventListener("keydown", onKeyDown, true);
+window.addEventListener("scroll", onScroll, { passive: true, capture: true });
 window.addEventListener("blur", hide);
 
 chrome.storage.local.get(ENABLED_KEY, (r) => {
   enabled = r[ENABLED_KEY] ?? true;
 });
-chrome.storage.onChanged.addListener((changes) => {
-  if (ENABLED_KEY in changes) {
-    enabled = changes[ENABLED_KEY].newValue ?? true;
-    if (!enabled) hide();
-  }
-});
+chrome.storage.onChanged.addListener(onStorage);

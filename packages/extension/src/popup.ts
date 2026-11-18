@@ -165,4 +165,9 @@ export class Popup {
   hide() {
     if (this.card) this.card.style.display = "none";
   }
+
+  destroy() {
+    this.host?.remove();
+    this.host = null;
+  }
 }

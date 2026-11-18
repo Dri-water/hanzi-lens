@@ -11,8 +11,13 @@ export interface LexiconData {
   version: number;
   /** Sum of all frequencies. */
   total: number;
-  /** Word -> corpus frequency (jieba + all CC-CEDICT headwords). */
-  freq: Record<string, number>;
+  /**
+   * Corpus frequencies (jieba + all CC-CEDICT headwords) as parallel arrays:
+   * `words` is newline-joined, `freqs[i]` belongs to the i-th word. Much faster
+   * to load than a 430k-key object, which matters on every worker cold start.
+   */
+  words: string;
+  freqs: number[];
   /** CC-CEDICT rows: [traditional, simplified, numbered pinyin, "/"-joined definitions]. */
   entries: [string, string, string, string][];
   hmm: HmmModel;
@@ -41,9 +46,14 @@ export class Lexicon {
     this.logTotal = Math.log(data.total);
     this.hmm = data.hmm;
     this.rows = data.entries;
-    this.freq = new Map(Object.entries(data.freq));
+    const words = data.words.split("\n");
+    this.freq = new Map();
     let max = 1;
-    for (const w of this.freq.keys()) if (w.length > max) max = w.length;
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      this.freq.set(w, data.freqs[i]);
+      if (w.length > max) max = w.length;
+    }
     this.maxWordLength = Math.min(max, 24);
     this.rows.forEach(([trad, simp], i) => {
       this.addIndex(simp, i);

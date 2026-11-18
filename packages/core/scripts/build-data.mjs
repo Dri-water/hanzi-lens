@@ -131,9 +131,10 @@ function build() {
   };
 
   const lexicon = {
-    version: 1,
+    version: 2,
     total,
-    freq: Object.fromEntries(freq),
+    words: [...freq.keys()].join("\n"),
+    freqs: [...freq.values()],
     entries,
     hmm,
   };

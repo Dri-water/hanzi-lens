@@ -45,3 +45,24 @@ chrome.runtime.onStartup?.addListener(async () => {
   const { [ENABLED_KEY]: enabled = true } = await chrome.storage.local.get(ENABLED_KEY);
   await setEnabled(enabled);
 });
+
+// Chrome only runs content scripts in pages loaded after install, and an
+// update cuts off the copies already running. Without this, every tab that
+// was open at install/update time (often a long-lived YouTube or news tab)
+// silently does nothing until it's reloaded. The fresh copy tells any stale
+// one to step aside (see TAKEOVER in content.ts).
+chrome.runtime.onInstalled.addListener(async () => {
+  const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*", "file:///*"] });
+  await Promise.all(
+    tabs.map(async (tab) => {
+      if (tab.id == null || tab.discarded) return;
+      const target = { tabId: tab.id, allFrames: true };
+      try {
+        await chrome.scripting.insertCSS({ target, files: ["content.css"] });
+        await chrome.scripting.executeScript({ target, files: ["content.js"] });
+      } catch {
+        // Pages extensions can't touch (Web Store, other extensions, PDFs).
+      }
+    }),
+  );
+});
