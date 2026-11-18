@@ -34,14 +34,20 @@ const copyBuild = (src) =>
   cpSync(src, extDir, { recursive: true, filter: (p) => !/[\\/](demo\.(html|js)|showcase\.html)$/.test(p) });
 copyBuild(from);
 
-const browser = await puppeteer.launch({
-  executablePath: chromePath(),
-  headless: true,
-  pipe: true,
-  protocolTimeout: 20000,
-  ignoreDefaultArgs: ["--disable-extensions"],
-  // GitHub's Ubuntu runners block the Chrome sandbox (AppArmor userns rules).
-  args: ["--enable-unsafe-extension-debugging", ...(process.env.CI ? ["--no-sandbox"] : [])],
+const launch = () =>
+  puppeteer.launch({
+    executablePath: chromePath(),
+    headless: true,
+    pipe: true,
+    protocolTimeout: 20000,
+    ignoreDefaultArgs: ["--disable-extensions"],
+    // GitHub's Ubuntu runners block the Chrome sandbox (AppArmor userns rules).
+    args: ["--enable-unsafe-extension-debugging", ...(process.env.CI ? ["--no-sandbox"] : [])],
+  });
+// Chrome occasionally hangs at startup on CI runners; one retry covers it.
+const browser = await launch().catch((e) => {
+  console.log(`Chrome didn't start (${e.message}); retrying once`);
+  return launch();
 });
 let failed = false;
 const check = (ok, msg) => {
