@@ -30,6 +30,10 @@ li { margin: 1px 0; }
 .row .w { font: 16px/1.3 "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif; white-space: nowrap; }
 .row .g { color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .none { color: #8a8578; font-style: italic; margin-top: 4px; }
+.loading { display: inline-flex; gap: 4px; align-items: center; margin-left: 4px; }
+.loading i { width: 6px; height: 6px; border-radius: 50%; background: #b9b3a4; animation: hl-dot 0.9s infinite ease-in-out; }
+.loading i:nth-child(2) { animation-delay: .15s; } .loading i:nth-child(3) { animation-delay: .3s; }
+@keyframes hl-dot { 0%, 80%, 100% { opacity: .25; transform: scale(.8); } 40% { opacity: 1; transform: scale(1); } }
 @media (prefers-color-scheme: dark) {
   .card { color: #ece9e1; background: #24231f; border-color: #45423a; }
   .alt, .approx, .label, .none { color: #a19c8f; }
@@ -157,6 +161,20 @@ export class Popup {
 
     c.style.display = "block";
     c.scrollTop = 0;
+    this.position(anchor);
+  }
+
+  /** The word right away, with a loader while its entry is on the way. */
+  showLoading(word: string, anchor: DOMRect) {
+    this.ensure();
+    const c = this.card;
+    const head = el("div", "head");
+    const dots = el("span", "loading");
+    dots.append(el("i"), el("i"), el("i"));
+    dots.setAttribute("aria-label", "Loading");
+    head.append(el("span", "hanzi", word), dots);
+    c.replaceChildren(head);
+    c.style.display = "block";
     this.position(anchor);
   }
 

@@ -1,7 +1,14 @@
 // Content script: finds the character under the mouse, asks the background to
 // segment the surrounding text, highlights word boundaries and shows a popup.
 import type { Token, WordInfo } from "@hanzi-lens/core";
-import { ENABLED_KEY, KEEP_OPEN_KEY, type LookupResponse, type Request, type SegmentResponse } from "./messages.js";
+import {
+  ENABLED_KEY,
+  KEEP_OPEN_KEY,
+  type LookupManyResponse,
+  type LookupResponse,
+  type Request,
+  type SegmentResponse,
+} from "./messages.js";
 import { Popup } from "./popup.js";
 
 const HAN = /\p{Script=Han}/u;
@@ -10,6 +17,8 @@ const MAX_BLOCK_CHARS = 4000;
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "OPTION", "CODE", "PRE"]);
 /** With "keep open" on: time to cross the gap between the word and the card. */
 const KEEP_OPEN_GRACE_MS = 300;
+/** Show a loader only if an answer takes longer than this (avoids a flash). */
+const LOADER_DELAY_MS = 80;
 /** Below Chrome's 30 s idle limit for extension workers (see keepAlive below). */
 const KEEPALIVE_MS = 20_000;
 
@@ -74,21 +83,64 @@ function send<T>(msg: Request): Promise<T> {
   });
 }
 
+const tokenKey = (t: Token) => `${t.kind}:${t.text}`;
+/** Answers already in hand, so a card can be drawn without waiting at all. */
+const ready = new Map<string, WordInfo>();
+function remember(key: string, info: WordInfo) {
+  ready.set(key, info);
+  if (ready.size > 3000) ready.delete(ready.keys().next().value!);
+}
+
 function lookup(token: Token): Promise<WordInfo | null> {
-  const key = `${token.kind}:${token.text}`;
+  const key = tokenKey(token);
+  const have = ready.get(key);
+  if (have) return Promise.resolve(have);
   let p = lookups.get(key);
   if (!p) {
     p = send<LookupResponse>({ type: "lookup", token }).then(
-      (r) => ("info" in r ? r.info : null),
+      (r) => {
+        lookups.delete(key);
+        if (!("info" in r)) return null;
+        remember(key, r.info);
+        return r.info;
+      },
       () => {
         lookups.delete(key); // e.g. the worker was restarting: try again next hover
         return null;
       },
     );
     lookups.set(key, p);
-    if (lookups.size > 2000) lookups.delete(lookups.keys().next().value!);
   }
   return p;
+}
+
+/** Fetch the words around the hovered one in one round trip, so moving the
+ *  mouse along the sentence shows each card instantly. */
+function prefetch(tokens: Token[]) {
+  const seen = new Set<string>();
+  const want = tokens.filter((t) => {
+    const k = tokenKey(t);
+    if (!isChinese(t) || ready.has(k) || lookups.has(k) || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  if (!want.length) return;
+  const all = send<LookupManyResponse>({ type: "lookupMany", tokens: want }).then(
+    (r) => ("infos" in r ? r.infos : []),
+    () => [] as WordInfo[],
+  );
+  want.forEach((t, i) => {
+    const key = tokenKey(t);
+    lookups.set(
+      key,
+      all.then((infos) => {
+        lookups.delete(key);
+        const info = infos[i] ?? null;
+        if (info) remember(key, info);
+        return info;
+      }),
+    );
+  });
 }
 
 // --- DOM text helpers ----------------------------------------------------------
@@ -115,6 +167,42 @@ function charUnderPointer(node: Text, offset: number, x: number, y: number): num
   const range = document.createRange();
   for (const i of [offset, offset - 1]) {
     if (i < 0 || i >= node.length) continue;
+    range.setStart(node, i);
+    range.setEnd(node, i + 1);
+    for (const r of range.getClientRects()) if (rectContains(r, x, y)) return i;
+  }
+  return null;
+}
+
+/** Character under the pointer: the text node and the index of the character. */
+function textUnderPointer(x: number, y: number): { node: Text; idx: number } | null {
+  const caret = caretAt(x, y);
+  if (caret) {
+    const idx = charUnderPointer(caret.node, caret.offset, x, y);
+    if (idx != null) return { node: caret.node, idx };
+  }
+  // Many sites lay an invisible box over a whole card so it's all one link
+  // (e.g. `a::before { position: absolute; inset: 0 }`). The caret APIs then
+  // report the start of the text, not the character under the pointer. Look
+  // through the elements under the pointer for text that's really there.
+  for (const el of document.elementsFromPoint(x, y).slice(0, 8)) {
+    if (el.closest("[data-hanzi-lens]")) continue;
+    for (const child of el.childNodes) {
+      if (child.nodeType !== Node.TEXT_NODE) continue;
+      const idx = scanForChar(child as Text, x, y);
+      if (idx != null) return { node: child as Text, idx };
+    }
+  }
+  return null;
+}
+
+const MAX_SCAN = 2000;
+function scanForChar(node: Text, x: number, y: number): number | null {
+  if (!HAN.test(node.data)) return null;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  if (![...range.getClientRects()].some((r) => rectContains(r, x, y))) return null;
+  for (let i = 0; i < node.length && i < MAX_SCAN; i++) {
     range.setStart(node, i);
     range.setEnd(node, i + 1);
     for (const r of range.getClientRects()) if (rectContains(r, x, y)) return i;
@@ -204,8 +292,8 @@ async function handleHover(e: MouseEvent) {
     // Only reachable with "keep open" on (otherwise the card ignores the mouse).
     return cancelHide();
   }
-  const caret = caretAt(e.clientX, e.clientY);
-  const idx = caret && charUnderPointer(caret.node, caret.offset, e.clientX, e.clientY);
+  const caret = textUnderPointer(e.clientX, e.clientY);
+  const idx = caret?.idx;
   if (!caret || idx == null || !HAN.test(caret.node.data[idx] ?? "")) return leave();
   sawChinese();
 
@@ -214,7 +302,18 @@ async function handleHover(e: MouseEvent) {
   // no longer about what's under the pointer, so drop it now.
   if (current && current.block !== block) hide();
   latestNode = caret.node;
-  const ctx = await getContext(block, caret.node).catch(() => null);
+  const pending = getContext(block, caret.node);
+  // Segmenting a new paragraph is one round trip, longer if the dictionary is
+  // still loading. If it's noticeable, show the character with a loader.
+  const loader = window.setTimeout(() => {
+    if (latestNode !== caret.node || current) return;
+    const r = document.createRange();
+    r.setStart(caret.node, idx);
+    r.setEnd(caret.node, idx + 1);
+    popup.showLoading(caret.node.data[idx], r.getBoundingClientRect());
+  }, LOADER_DELAY_MS);
+  const ctx = await pending.catch(() => null);
+  clearTimeout(loader);
   if (latestNode !== caret.node) return; // pointer has moved on
   if (!ctx) return leave();
   const nodeStart = ctx.nodes.find((n) => n.node === caret.node)?.start;
@@ -230,17 +329,24 @@ async function handleHover(e: MouseEvent) {
 
   const tokenRange = rangeFor(ctx, token.start, token.end);
   if (!tokenRange) return;
-  highlightSentence(ctx, ti, tokenRange);
+  const [s, e2] = sentenceAround(ctx, ti);
+  highlightSentence(ctx, ti, s, e2, tokenRange);
 
+  const have = ready.get(tokenKey(token));
+  if (have) return popup.show(have, tokenRange.getBoundingClientRect());
+  // Never leave the previous word's card up while this one loads.
+  popup.showLoading(token.text, tokenRange.getBoundingClientRect());
+  prefetch(ctx.tokens.slice(Math.max(s, ti - 40), Math.min(e2, ti + 40) + 1));
   const info = await lookup(token);
-  if (current?.token !== token || !info) return;
-  popup.show(info, tokenRange.getBoundingClientRect());
+  if (current?.token !== token) return;
+  if (info) popup.show(info, tokenRange.getBoundingClientRect());
+  else popup.hide();
 }
 
 /** The pointer is no longer on a Chinese word. */
 function leave() {
   latestNode = null;
-  if (!current) return;
+  if (!current) return popup.hide(); // may be showing a loader
   if (!keepOpen) return hide();
   if (hideTimer) return; // already counting down
   hideTimer = window.setTimeout(hide, KEEP_OPEN_GRACE_MS);
@@ -283,13 +389,18 @@ function pageLooksChinese() {
 }
 
 /** Alternate-tint every word in the sentence so boundaries are visible. */
-function highlightSentence(ctx: TextContext, ti: number, active: Range) {
-  clearHighlights();
-  if (!hl) return;
+/** Token index range of the sentence around token ti. */
+function sentenceAround(ctx: TextContext, ti: number): [number, number] {
   let s = ti;
   while (s > 0 && !SENTENCE_END.test(ctx.tokens[s - 1].text)) s--;
   let e = ti;
   while (e < ctx.tokens.length - 1 && !SENTENCE_END.test(ctx.tokens[e + 1].text)) e++;
+  return [s, e];
+}
+
+function highlightSentence(ctx: TextContext, ti: number, s: number, e: number, active: Range) {
+  clearHighlights();
+  if (!hl) return;
   let alt = false;
   for (let i = s; i <= e; i++) {
     const t = ctx.tokens[i];

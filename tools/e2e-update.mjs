@@ -24,7 +24,9 @@ const from = fromArg > 0 ? process.argv[fromArg + 1] : dist;
 const PAGE = `<!doctype html><meta charset="utf-8"><title>e2e</title>
 <body style="font:24px sans-serif;margin:40px">
 <h1 id="h">美国务卿鲁比奥访华</h1>
-<p>Text inside a link: <a href="#"><b>特朗普</b>宣布对华加征关税</a></p></body>`;
+<p>Text inside a link: <a href="#"><b>特朗普</b>宣布对华加征关税</a></p>
+<style>.stretch::before { content: ""; position: absolute; inset: 0 }</style>
+<div style="position:relative;width:700px"><h2><a id="s" class="stretch" href="#">习近平亲赴机场迎接特朗普</a></h2></div></body>`;
 const server = createServer((_, res) => res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(PAGE));
 await new Promise((r) => server.listen(0, r));
 const url = `http://localhost:${server.address().port}/`;
@@ -69,25 +71,27 @@ try {
   await page.setViewport({ width: 900, height: 500 });
   await page.goto(url, { waitUntil: "load" });
 
-  /** Hovers the n-th character of #h, returns the popup's headword (or null). */
-  const hover = async (n) => {
+  /** Hovers the n-th character of #h (or another element), returns the
+   *  headword of the fully loaded popup (or null). */
+  const hover = async (n, el = "h") => {
     await page.mouse.move(5, 480); // off any text: lets the previous popup go
     await new Promise((r) => setTimeout(r, 400));
-    const p = await page.evaluate((n) => {
-      const t = document.getElementById("h").firstChild;
+    const p = await page.evaluate((n, el) => {
+      const t = document.getElementById(el).firstChild;
       const r = document.createRange();
       r.setStart(t, n);
       r.setEnd(t, n + 1);
       const b = r.getBoundingClientRect();
       return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
-    }, n);
+    }, n, el);
     await page.mouse.move(p.x, p.y);
     return page
       .waitForFunction(
         () => {
           const hosts = [...document.querySelectorAll("[data-hanzi-lens]")];
           const card = hosts.map((h) => h.shadowRoot?.querySelector(".card")).find((c) => c && c.style.display !== "none");
-          return card?.querySelector(".hanzi")?.textContent || false;
+          if (!card || card.querySelector(".loading")) return false;
+          return card.querySelector(".hanzi")?.textContent || false;
         },
         { timeout: 8000 },
       )
@@ -95,6 +99,7 @@ try {
   };
 
   check((await hover(4)) === "鲁比奥", "hover works after install (鲁比奥)");
+  check((await hover(10, "s")) === "特朗普", "hover works under a link stretched over its card (特朗普)");
 
   // --- update: swap in the current build and reload the extension ---
   copyBuild(dist);

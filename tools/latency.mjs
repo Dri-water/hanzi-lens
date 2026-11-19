@@ -1,4 +1,5 @@
 // Measures how fast the popup reacts, in a real Chrome with the built extension:
+//   coldFirst  same hover: until anything shows (the loader)
 //   cold    first hover after the background worker was shut down (idle >30 s)
 //   block   first hover in a paragraph not hovered before (worker warm)
 //   word    moving to another word in the same paragraph
@@ -44,7 +45,7 @@ const browser = await puppeteer.launch({
   args: ["--enable-unsafe-extension-debugging", ...(process.env.CI ? ["--no-sandbox"] : [])],
 });
 
-const stats = { cold: [], block: [], word: [], hide: [], idle: [] };
+const stats = { coldFirst: [], cold: [], block: [], word: [], hide: [], idle: [] };
 try {
   const cdp = await browser.target().createCDPSession();
   await cdp.send("Extensions.loadUnpacked", { path: extDir });
@@ -62,7 +63,8 @@ try {
         const card = [...document.querySelectorAll("[data-hanzi-lens]")]
           .map((h) => h.shadowRoot?.querySelector(".card"))
           .find((c) => c && c.style.display !== "none");
-        const w = card?.querySelector(".hanzi")?.textContent ?? null;
+        // A card still showing its loader doesn't count as loaded.
+        const w = card && !card.querySelector(".loading") ? card.querySelector(".hanzi")?.textContent ?? null : card ? "…" : null;
         if (window.__check(w)) window.__dt = performance.now() - window.__t0;
         else requestAnimationFrame(tick);
       };
@@ -105,18 +107,25 @@ try {
     await new Promise((res) => setTimeout(res, 500));
     // char 4 of line 0 is inside 鲁比奥, char 1 of line 1 inside 朗 of 特朗普
     let p = await charPos(`p${r}_0`, 4);
-    stats.cold.push(await timed(p.x, p.y, "return w !== null"));
+    // Two numbers for the same hover: first feedback (loader), then the full card.
+    const t0 = Date.now();
+    stats.coldFirst.push(await timed(p.x, p.y, "return w !== null"));
+    await page.waitForFunction(() => {
+      const c = document.querySelector("[data-hanzi-lens]")?.shadowRoot?.querySelector(".card");
+      return c && c.style.display !== "none" && !c.querySelector(".loading");
+    });
+    stats.cold.push(Date.now() - t0);
     await away();
     p = await charPos(`p${r}_1`, 1);
-    stats.block.push(await timed(p.x, p.y, "return w !== null"));
+    stats.block.push(await timed(p.x, p.y, "return w !== null && w !== '…'"));
     p = await charPos(`p${r}_1`, 7); // 加征 / 关税 area
-    stats.word.push(await timed(p.x, p.y, "return w !== null && w !== '特朗普'"));
+    stats.word.push(await timed(p.x, p.y, "return w !== null && w !== '…' && w !== '特朗普'"));
     stats.hide.push(await timed(1090, 5, "return w === null"));
   }
   if (!process.argv.includes("--no-idle")) {
     await new Promise((res) => setTimeout(res, 35_000));
     const p = await charPos(`p${runs}_2`, 3);
-    stats.idle.push(await timed(p.x, p.y, "return w !== null"));
+    stats.idle.push(await timed(p.x, p.y, "return w !== null && w !== '…'"));
   }
 } finally {
   await browser.close();

@@ -20,6 +20,7 @@ chrome.runtime.onMessage.addListener((msg: Request, _sender, sendResponse) => {
     .then((e) => {
       if (msg.type === "segment") sendResponse({ tokens: e.segment(msg.text) });
       else if (msg.type === "lookup") sendResponse({ info: e.lookup(msg.token) });
+      else if (msg.type === "lookupMany") sendResponse({ infos: msg.tokens.map((t) => e.lookup(t)) });
       else sendResponse({ ok: true });
     })
     .catch((err) => sendResponse({ error: String(err) }));

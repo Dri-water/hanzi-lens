@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hanzi Lens",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Hover Chinese text to see where words begin and end, with pinyin and English definitions.",
   "background": {
     "service_worker": "background.js"
